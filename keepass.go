@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // listEntries returns every entry path in the database, newline separated.
@@ -91,7 +92,7 @@ type Field struct {
 // showAll returns every field keepassxc-cli knows about, including custom
 // attributes. Password comes back as PROTECTED, so it is fetched separately.
 func (c Config) showAll(entry, passphrase string) ([]Field, error) {
-	args := []string{"show", "-q", "--all"}
+	args := []string{"show", "-q", "--all", "-s"}
 	if c.KeyFile != "" {
 		args = append(args, "-k", c.KeyFile)
 	}
@@ -239,6 +240,14 @@ func (c Config) listGroups(passphrase string) ([]string, error) {
 		}
 	}
 	return groups, nil
+}
+
+func (c Config) dbMtime() time.Time {
+	fi, err := os.Stat(c.Database)
+	if err != nil {
+		return time.Time{}
+	}
+	return fi.ModTime()
 }
 
 func (c Config) touchCache() {

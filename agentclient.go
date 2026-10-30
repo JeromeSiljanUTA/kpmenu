@@ -58,6 +58,22 @@ func agentCall(cfg Config, req agentRequest) (agentResponse, error) {
 	return resp, nil
 }
 
+// agentFields asks the agent for a decrypted entry, decrypting only on a miss.
+func agentFields(cfg Config, entry string) ([]Field, error) {
+	resp, err := agentCall(cfg, agentRequest{Op: "entry", Entry: entry})
+	if err != nil {
+		return nil, err
+	}
+	if !resp.OK {
+		return nil, fmt.Errorf("%s", resp.Error)
+	}
+	return resp.Fields, nil
+}
+
+func agentInvalidate(cfg Config, entry string) {
+	agentCall(cfg, agentRequest{Op: "invalidate", Entry: entry})
+}
+
 func ensureUnlocked(cfg Config, allowPrompt bool) (string, error) {
 	if !agentAlive(cfg) {
 		if !allowPrompt {

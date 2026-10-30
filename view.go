@@ -14,11 +14,13 @@ func cmdView() {
 		exitCancel(err)
 	}
 
-	entry, err := pickEntry(cfg, "keepass")
-	if err != nil {
-		exitCancel(err)
+	for {
+		entry, err := pickEntry(cfg, "keepass")
+		if err != nil {
+			exitCancel(err)
+		}
+		entryMenu(cfg, entry, pass)
 	}
-	entryMenu(cfg, entry, pass)
 }
 
 func pickEntry(cfg Config, prompt string) (string, error) {
@@ -32,19 +34,21 @@ func pickEntry(cfg Config, prompt string) (string, error) {
 	return wofiSelect(cfg, entries, prompt)
 }
 
+// entryMenu returns when the user presses escape, which goes back to the
+// entry list rather than closing kpmenu.
 func entryMenu(cfg Config, entry, pass string) {
 	for {
-		fields, err := cfg.showAll(entry, pass)
+		fields, err := agentFields(cfg, entry)
 		if err != nil {
 			notify(cfg, err.Error())
 			return
 		}
 
-		items := make([]string, 0, len(fields)+3)
+		items := make([]string, 0, len(fields)+2)
 		for _, f := range fields {
 			items = append(items, fieldLabel(f))
 		}
-		items = append(items, "Edit ▸", "Add entry", "Back")
+		items = append(items, "Edit ▸", "Add entry")
 
 		choice, err := wofiSelect(cfg, items, baseName(entry))
 		if err != nil {
@@ -52,17 +56,25 @@ func entryMenu(cfg Config, entry, pass string) {
 		}
 
 		switch choice {
-		case "Back":
-			return
 		case "Edit ▸":
 			editMenu(cfg, entry, pass)
 		case "Add entry":
 			addMenu(cfg, pass)
 		default:
 			key := strings.SplitN(choice, ": ", 2)[0]
-			useField(cfg, entry, key, pass)
+			field := findField(fields, key)
+			useField(cfg, entry, field, pass)
 		}
 	}
+}
+
+func findField(fields []Field, key string) Field {
+	for _, f := range fields {
+		if strings.EqualFold(f.Key, key) {
+			return f
+		}
+	}
+	return Field{Key: key}
 }
 
 func fieldLabel(f Field) string {
@@ -72,46 +84,55 @@ func fieldLabel(f Field) string {
 	return f.Key + ": " + truncate(f.Value)
 }
 
-func useField(cfg Config, entry, key, pass string) {
-	if strings.EqualFold(key, "Notes") {
-		notesValue(cfg, entry, pass)
+func useField(cfg Config, entry string, field Field, pass string) {
+	if strings.EqualFold(field.Key, "Notes") {
+		notesValue(cfg, entry, field.Value, pass)
 		return
 	}
-	value, err := cfg.fieldValue(entry, key, pass)
-	if err != nil || value == "" {
-		notify(cfg, key+" is empty")
+	if strings.EqualFold(field.Key, "TOTP") && field.Value == "" {
+		live, err := cfg.totp(entry, pass)
+		if err != nil || live == "" {
+			notify(cfg, "no TOTP")
+			return
+		}
+		field.Value = live
+	}
+	if field.Value == "" {
+		notify(cfg, field.Key+" is empty")
 		return
 	}
-	copyAndType(cfg, key, value)
+	copyAndType(cfg, field.Key, field.Value)
 }
 
-func notesValue(cfg Config, entry, pass string) {
-	notes, err := cfg.showField(entry, "Notes", pass)
-	if err != nil || strings.TrimSpace(notes) == "" {
+func notesValue(cfg Config, entry, notes, pass string) {
+	if strings.TrimSpace(notes) == "" {
 		notify(cfg, "no notes")
 		return
 	}
-	lines := strings.Split(notes, "\n")
-	items := make([]string, 0, len(lines)+2)
-	for i, l := range lines {
-		items = append(items, fmt.Sprintf("%d: %s", i+1, l))
-	}
-	items = append(items, "Edit ▸", "Back")
+	for {
+		lines := strings.Split(notes, "\n")
+		items := make([]string, 0, len(lines)+1)
+		for i, l := range lines {
+			items = append(items, fmt.Sprintf("%d: %s", i+1, l))
+		}
+		items = append(items, "Edit ▸")
 
-	choice, err := wofiSelect(cfg, items, baseName(entry)+" notes")
-	if err != nil {
-		return
-	}
-	if choice == "Back" {
-		return
-	}
-	if choice == "Edit ▸" {
-		editNotes(cfg, entry, notes, pass)
-		return
-	}
-	_, line, _ := strings.Cut(choice, ": ")
-	if strings.TrimSpace(line) != "" {
-		copyAndType(cfg, "note", line)
+		choice, err := wofiSelect(cfg, items, baseName(entry)+" notes")
+		if err != nil {
+			return
+		}
+		if choice == "Edit ▸" {
+			editNotes(cfg, entry, notes, pass)
+			agentInvalidate(cfg, entry)
+			if fields, err := agentFields(cfg, entry); err == nil {
+				notes = findField(fields, "Notes").Value
+			}
+			continue
+		}
+		_, line, _ := strings.Cut(choice, ": ")
+		if strings.TrimSpace(line) != "" {
+			copyAndType(cfg, "note", line)
+		}
 	}
 }
 
@@ -126,7 +147,7 @@ func copyAndType(cfg Config, label, value string) {
 }
 
 func editMenu(cfg Config, entry, pass string) {
-	fields, err := cfg.showAll(entry, pass)
+	fields, err := agentFields(cfg, entry)
 	if err != nil {
 		notify(cfg, err.Error())
 		return
@@ -138,10 +159,10 @@ func editMenu(cfg Config, entry, pass string) {
 			editable = append(editable, f.Key)
 		}
 	}
-	editable = append(editable, "Delete entry", "Back")
+	editable = append(editable, "Delete entry")
 
 	choice, err := wofiSelect(cfg, editable, "edit "+baseName(entry))
-	if err != nil || choice == "Back" {
+	if err != nil {
 		return
 	}
 
@@ -159,12 +180,14 @@ func editMenu(cfg Config, entry, pass string) {
 		notify(cfg, "deleted "+baseName(entry))
 		os.Exit(0)
 	case "Notes":
-		notes, _ := cfg.showField(entry, "Notes", pass)
+		notes := findField(fields, "Notes").Value
 		editNotes(cfg, entry, notes, pass)
+		agentInvalidate(cfg, entry)
 	case "Password":
 		editPassword(cfg, entry, pass)
+		agentInvalidate(cfg, entry)
 	default:
-		current, _ := cfg.showField(entry, choice, pass)
+		current := findField(fields, choice).Value
 		newVal, err := wofiInput(cfg, "new "+strings.ToLower(choice), current)
 		if err != nil {
 			return
@@ -173,6 +196,7 @@ func editMenu(cfg Config, entry, pass string) {
 			notify(cfg, err.Error())
 			return
 		}
+		agentInvalidate(cfg, entry)
 		notify(cfg, choice+" updated")
 	}
 }

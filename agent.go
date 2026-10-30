@@ -14,22 +14,30 @@ import (
 	"time"
 )
 
+type cachedEntry struct {
+	fields []Field
+	mtime  time.Time
+}
+
 type agentState struct {
 	passphrase string
 	db         string
 	lastUsed   time.Time
+	entryCache map[string]cachedEntry
 }
 
 type agentRequest struct {
 	Op      string `json:"op"`
 	DB      string `json:"db"`
+	Entry   string `json:"entry"`
 	Refresh bool   `json:"refresh"`
 }
 
 type agentResponse struct {
-	OK    bool   `json:"ok"`
-	Value string `json:"value"`
-	Error string `json:"error"`
+	OK     bool    `json:"ok"`
+	Value  string  `json:"value"`
+	Error  string  `json:"error"`
+	Fields []Field `json:"fields,omitempty"`
 }
 
 func runAgent(cfg Config) error {
@@ -45,7 +53,7 @@ func runAgent(cfg Config) error {
 	defer ln.Close()
 	os.Chmod(cfg.SocketPath, 0o600)
 
-	st := &agentState{db: cfg.Database, lastUsed: time.Now()}
+	st := &agentState{db: cfg.Database, lastUsed: time.Now(), entryCache: map[string]cachedEntry{}}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -141,10 +149,43 @@ func handleConn(cfg Config, st *agentState, conn net.Conn) {
 			enc.Encode(agentResponse{Error: err.Error()})
 			return
 		}
+		st.entryCache = map[string]cachedEntry{}
+		enc.Encode(agentResponse{OK: true})
+	case "entry":
+		if st.passphrase == "" {
+			enc.Encode(agentResponse{Error: "locked"})
+			return
+		}
+		fields, err := st.cachedFields(cfg, req.Entry)
+		if err != nil {
+			enc.Encode(agentResponse{Error: err.Error()})
+			return
+		}
+		enc.Encode(agentResponse{OK: true, Fields: fields})
+	case "invalidate":
+		delete(st.entryCache, req.Entry)
 		enc.Encode(agentResponse{OK: true})
 	default:
 		enc.Encode(agentResponse{Error: "unknown op"})
 	}
+}
+
+// cachedFields decrypts the database at most once per entry and keeps the
+// result in memory; every later field read is served from here.
+func (st *agentState) cachedFields(cfg Config, entry string) ([]Field, error) {
+	mtime := cfg.dbMtime()
+	if c, ok := st.entryCache[entry]; ok && c.mtime.Equal(mtime) {
+		return c.fields, nil
+	}
+	fields, err := cfg.showAll(entry, st.passphrase)
+	if err != nil {
+		return nil, err
+	}
+	if totp, err := cfg.totp(entry, st.passphrase); err == nil && totp != "" {
+		fields = append(fields, Field{Key: "TOTP", Value: totp})
+	}
+	st.entryCache[entry] = cachedEntry{fields: fields, mtime: mtime}
+	return fields, nil
 }
 
 func promptPassphrase(cfg Config) (string, error) {
