@@ -45,9 +45,12 @@ func wofiSelect(cfg Config, entries []string, prompt string) (string, error) {
 	return sel, nil
 }
 
+// wofiPassword shows the prompt as a visible row because wofi's --prompt is
+// only placeholder text and is invisible under many themes. exec-search makes
+// Enter submit the typed value rather than the highlighted row.
 func wofiPassword(cfg Config, prompt string) (string, error) {
-	args := wofiArgs("--dmenu", "--password", "--prompt", prompt)
-	return wofiRun(cfg, args, "")
+	args := wofiArgs("--dmenu", "--password", "--exec-search", "--prompt", prompt)
+	return wofiRun(cfg, args, prompt+" - type and press Enter")
 }
 
 func wofiInput(cfg Config, prompt, initial string) (string, error) {

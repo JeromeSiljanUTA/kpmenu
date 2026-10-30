@@ -223,7 +223,7 @@ func promptPassphrase(cfg Config) (string, error) {
 	// particular needs a TTY that a compositor-spawned process does not have.
 	if cfg.Prompt == "wofi" {
 		notify(cfg, "Enter your keepass passphrase to unlock")
-		pw, err := wofiPassword(cfg, "Unlock keepass - type passphrase + Enter")
+		pw, err := wofiPassword(cfg, "Unlock keepass")
 		if err == nil {
 			return pw, nil
 		}
