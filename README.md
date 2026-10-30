@@ -127,5 +127,8 @@ Full option list: `database`, `keyFile`, `package`, `pinentry`,
   even on a large vault. The cache refreshes when the file changes or an edit
   is written. TOTP is fetched lazily because it changes over time. Escape
   moves back one menu; escape on the entry list exits.
+- Selecting a field copies and types it, then closes the menu so the result is
+  visible. The last entry opened is stored and offered as a "↻ entry" shortcut
+  at the top of the entry list on the next launch.
 - `keepassxc-cli show --all` lists custom attributes, but `edit` cannot write
   them, so custom attributes are read-only in kpmenu.

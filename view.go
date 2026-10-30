@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -15,15 +16,19 @@ func cmdView() {
 	}
 
 	for {
-		entry, err := pickEntry(cfg, "keepass")
+		entry, err := pickEntry(cfg, pass)
 		if err != nil {
 			exitCancel(err)
 		}
-		entryMenu(cfg, entry, pass)
+		saveLastEntry(cfg, entry)
+		if entryMenu(cfg, entry, pass) {
+			return
+		}
 	}
 }
 
-func pickEntry(cfg Config, prompt string) (string, error) {
+// pickEntry offers the last used entry as a shortcut above the full list.
+func pickEntry(cfg Config, pass string) (string, error) {
 	entries, err := getEntries(cfg)
 	if err != nil {
 		return "", err
@@ -31,17 +36,53 @@ func pickEntry(cfg Config, prompt string) (string, error) {
 	if len(entries) == 0 {
 		return "", fmt.Errorf("no entries found")
 	}
-	return wofiSelect(cfg, entries, prompt)
+	last := lastEntry(cfg)
+	items := entries
+	if last != "" && contains(entries, last) {
+		items = append([]string{"↻ " + last}, entries...)
+	}
+	choice, err := wofiSelect(cfg, items, "keepass")
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimPrefix(choice, "↻ "), nil
 }
 
-// entryMenu returns when the user presses escape, which goes back to the
-// entry list rather than closing kpmenu.
-func entryMenu(cfg Config, entry, pass string) {
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+func lastEntryPath(cfg Config) string {
+	return filepath.Join(cfg.CacheDir, "last")
+}
+
+func lastEntry(cfg Config) string {
+	data, err := os.ReadFile(lastEntryPath(cfg))
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+func saveLastEntry(cfg Config, entry string) {
+	ensureDir(cfg.CacheDir)
+	os.WriteFile(lastEntryPath(cfg), []byte(entry), 0o600)
+}
+
+// entryMenu reports whether a terminal action ran. A field copy or a note line
+// returns true so kpmenu exits and wofi is not popped back up; escape returns
+// false so the caller goes back to the entry list.
+func entryMenu(cfg Config, entry, pass string) bool {
 	for {
 		fields, err := agentFields(cfg, entry)
 		if err != nil {
 			notify(cfg, err.Error())
-			return
+			return true
 		}
 
 		items := make([]string, 0, len(fields)+3)
@@ -55,7 +96,7 @@ func entryMenu(cfg Config, entry, pass string) {
 
 		choice, err := wofiSelect(cfg, items, baseName(entry))
 		if err != nil {
-			return
+			return false
 		}
 
 		switch choice {
@@ -66,7 +107,9 @@ func entryMenu(cfg Config, entry, pass string) {
 		default:
 			key := strings.SplitN(choice, ": ", 2)[0]
 			field := findField(fields, key)
-			useField(cfg, entry, field, pass)
+			if useField(cfg, entry, field, pass) {
+				return true
+			}
 		}
 	}
 }
@@ -96,30 +139,33 @@ func fieldLabel(f Field) string {
 	return f.Key + ": " + truncate(f.Value)
 }
 
-func useField(cfg Config, entry string, field Field, pass string) {
+// useField performs the terminal action for a field and reports whether the
+// menu should close, so wofi is not popped back up right after a copy.
+func useField(cfg Config, entry string, field Field, pass string) bool {
 	if strings.EqualFold(field.Key, "Notes") {
-		notesValue(cfg, entry, field.Value, pass)
-		return
+		return notesValue(cfg, entry, field.Value, pass)
 	}
 	if strings.EqualFold(field.Key, "TOTP") && field.Value == "" {
 		live, err := cfg.totp(entry, pass)
 		if err != nil || live == "" {
 			notify(cfg, "no TOTP")
-			return
+			return false
 		}
 		field.Value = live
 	}
 	if field.Value == "" {
 		notify(cfg, field.Key+" is empty")
-		return
+		return false
 	}
 	copyAndType(cfg, field.Key, field.Value)
+	return true
 }
 
-func notesValue(cfg Config, entry, notes, pass string) {
+// notesValue returns true when a note line was selected, which closes the menu.
+func notesValue(cfg Config, entry, notes, pass string) bool {
 	if strings.TrimSpace(notes) == "" {
 		notify(cfg, "no notes")
-		return
+		return false
 	}
 	for {
 		lines := strings.Split(notes, "\n")
@@ -131,7 +177,7 @@ func notesValue(cfg Config, entry, notes, pass string) {
 
 		choice, err := wofiSelect(cfg, items, baseName(entry)+" notes")
 		if err != nil {
-			return
+			return false
 		}
 		if choice == "Edit ▸" {
 			editNotes(cfg, entry, notes, pass)
@@ -144,7 +190,9 @@ func notesValue(cfg Config, entry, notes, pass string) {
 		_, line, _ := strings.Cut(choice, ": ")
 		if strings.TrimSpace(line) != "" {
 			copyAndType(cfg, "note", line)
+			return true
 		}
+		return false
 	}
 }
 
