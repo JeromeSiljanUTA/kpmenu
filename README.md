@@ -1,6 +1,6 @@
 # kpmenu
 
-** THIS PROJECT WAS FULLY VIBE CODED **
+**THIS PROJECT WAS FULLY VIBE CODED**
 
 A fast, wofi-based wrapper for `keepassxc-cli`.
 
