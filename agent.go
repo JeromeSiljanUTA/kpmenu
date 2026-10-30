@@ -222,7 +222,7 @@ func promptPassphrase(cfg Config) (string, error) {
 	// wofi is tried first so the prompt matches the menu; pinentry-curses in
 	// particular needs a TTY that a compositor-spawned process does not have.
 	if cfg.Prompt == "wofi" {
-		pw, err := wofiPassword(cfg, "keepass passphrase")
+		pw, err := wofiPassword(cfg, "keepass passphrase (enter to unlock)")
 		if err == nil {
 			return pw, nil
 		}
