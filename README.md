@@ -1,5 +1,7 @@
 # kpmenu
 
+** THIS PROJECT WAS FULLY VIBE CODED **:w
+
 A fast, wofi-based frontend for KeePassXC databases. Pick an entry, get the
 password in your clipboard or typed into the focused window.
 
