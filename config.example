@@ -1,0 +1,14 @@
+# kpmenu configuration
+#
+# database is the only required value. Everything else has a sensible default.
+
+database        = ~/keepass/passwords.kdbx
+# keyfile       = ~/keepass/key
+# pinentry      = pinentry-curses
+# keepassxc_cli = keepassxc-cli
+# wofi          = wofi
+# wtype         = wtype
+# wl_copy       = wl-copy
+# clipboard_clear = 30
+# lock_timeout    = 3600
+# cache_dir       = /run/user/1000/kpmenu
