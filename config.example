@@ -13,4 +13,6 @@ database        = ~/keepass/passwords.kdbx
 # clipboard_clear = 30
 # lock_timeout    = 3600
 # hide_groups     = Recycle Bin
+# terminal        = foot
+# editor          = nvim
 # cache_dir       = /run/user/1000/kpmenu

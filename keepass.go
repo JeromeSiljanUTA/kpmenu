@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -81,6 +82,51 @@ func (c Config) fieldValue(entry, field, passphrase string) (string, error) {
 	return c.showField(entry, field, passphrase)
 }
 
+// Field is a labeled value from show --all, in display order.
+type Field struct {
+	Key   string
+	Value string
+}
+
+// showAll returns every field keepassxc-cli knows about, including custom
+// attributes. Password comes back as PROTECTED, so it is fetched separately.
+func (c Config) showAll(entry, passphrase string) ([]Field, error) {
+	args := []string{"show", "-q", "--all"}
+	if c.KeyFile != "" {
+		args = append(args, "-k", c.KeyFile)
+	}
+	args = append(args, c.Database, entry)
+	cmd := exec.Command(c.KeepassxcCli, args...)
+	cmd.Stdin = strings.NewReader(passphrase + "\n")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("keepassxc-cli show --all: %w", err)
+	}
+	var fields []Field
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimRight(line, "\r")
+		k, v, ok := strings.Cut(line, ": ")
+		if !ok {
+			continue
+		}
+		k = strings.TrimSpace(k)
+		if strings.EqualFold(k, "uuid") || strings.EqualFold(k, "tags") {
+			continue
+		}
+		fields = append(fields, Field{Key: k, Value: v})
+	}
+	return fields, nil
+}
+
+func (c Config) generatePassword(length int) (string, error) {
+	args := []string{"generate", "-L", strconv.Itoa(length)}
+	out, err := exec.Command(c.KeepassxcCli, args...).Output()
+	if err != nil {
+		return "", fmt.Errorf("keepassxc-cli generate: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // editField maps a display field name to its keepassxc-cli edit flag.
 func (c Config) editField(entry, field, value, passphrase string) error {
 	flag := map[string]string{
@@ -103,6 +149,10 @@ func (c Config) editField(entry, field, value, passphrase string) error {
 		return fmt.Errorf("edit %s: %s", field, strings.TrimSpace(string(out)))
 	}
 	return nil
+}
+
+func (c Config) setNotes(entry, notes, passphrase string) error {
+	return c.editField(entry, "Notes", notes, passphrase)
 }
 
 func (c Config) editPassword(entry, newPassword, passphrase string) error {
@@ -171,9 +221,12 @@ func (c Config) deleteEntry(entry, passphrase string) error {
 
 func (c Config) listGroups(passphrase string) ([]string, error) {
 	args := []string{"ls", "-q", "-R", "-f"}
+	if c.KeyFile != "" {
+		args = append(args, "-k", c.KeyFile)
+	}
+	args = append(args, c.Database)
 	cmd := exec.Command(c.KeepassxcCli, args...)
 	cmd.Stdin = strings.NewReader(passphrase + "\n")
-	cmd.Args = append(cmd.Args, c.Database)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("keepassxc-cli ls: %w", err)

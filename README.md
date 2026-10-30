@@ -38,10 +38,20 @@ kpmenu lock           forget the cached passphrase
 ```
 
 `kpmenu view` prompts for the passphrase up front, then lets you drill into an
-entry. Selecting any field (UserName, Password, URL, Notes, TOTP) copies it to
-the clipboard and autotypes it. The `Edit` submenu changes UserName, Password,
-URL, Notes or Title, or deletes the entry. `Add entry` creates a new one, with
-either a typed or generated password.
+entry. The field menu lists every field `keepassxc-cli show --all` reports,
+including custom attributes. Selecting a field copies it to the clipboard and
+autotypes it.
+
+- **Notes** open a line picker: choose a line to copy and autotype it, or `Edit`
+  to open the whole notes blob in `$EDITOR` (launched in `terminal`).
+- **Edit** changes Title, UserName, Password, URL or Notes, or deletes the
+  entry. Password offers typed or generated values; generated passwords are
+  also placed on the clipboard.
+- **Add entry** creates an entry in a chosen group with a typed or generated
+  password.
+
+Custom attributes can be read, copied and typed. `keepassxc-cli` has no way to
+write custom attributes, so edit those in the KeePassXC GUI.
 
 Bind `kpmenu` and `kpmenu type` to keys in your compositor.
 
@@ -60,6 +70,8 @@ wl_copy         = wl-copy
 clipboard_clear = 30                        # seconds; 0 disables
 lock_timeout    = 3600                      # seconds of agent idle before lock
 hide_groups     = Recycle Bin               # comma separated, hidden from the menu
+terminal        = foot                      # terminal used to run the editor
+editor          = nvim                      # defaults to $EDITOR, then nvim
 ```
 
 The `KPMENU_CONFIG` environment variable overrides the config path.
@@ -104,6 +116,8 @@ Full option list: `database`, `keyFile`, `package`, `pinentry`,
   decryption.
 - Group rows (trailing `/`) and `[empty]` markers from `keepassxc-cli ls -R`
   are filtered out, along with any group listed in `hide_groups`.
-- `keepassxc-cli` 2.7.12 exposes only the standard fields plus TOTP; custom
-  attributes are not readable, so the view menu covers Title, UserName,
-  Password, URL, Notes and TOTP.
+- kpmenu is a porcelain over `keepassxc-cli`, not a reimplementation. All
+  parsing, decryption and writing is delegated to it, so no password-handling
+  crypto lives in kpmenu.
+- `keepassxc-cli show --all` lists custom attributes, but `edit` cannot write
+  them, so custom attributes are read-only in kpmenu.
