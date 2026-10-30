@@ -12,4 +12,5 @@ database        = ~/keepass/passwords.kdbx
 # wl_copy       = wl-copy
 # clipboard_clear = 30
 # lock_timeout    = 3600
+# hide_groups     = Recycle Bin
 # cache_dir       = /run/user/1000/kpmenu

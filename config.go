@@ -20,6 +20,7 @@ type Config struct {
 	CacheDir       string
 	ClipboardClear int
 	LockTimeout    int
+	HideGroups     []string
 	SocketPath     string
 }
 
@@ -39,6 +40,7 @@ func defaultConfig() Config {
 		CacheDir:       cacheDir,
 		ClipboardClear: 30,
 		LockTimeout:    3600,
+		HideGroups:     []string{"Recycle Bin"},
 		SocketPath:     filepath.Join(cacheDir, "agent.sock"),
 	}
 }
@@ -104,6 +106,13 @@ func loadConfig() Config {
 		case "lock_timeout":
 			if n, err := strconv.Atoi(v); err == nil {
 				cfg.LockTimeout = n
+			}
+		case "hide_groups":
+			cfg.HideGroups = nil
+			for _, g := range strings.Split(v, ",") {
+				if g = strings.TrimSpace(g); g != "" {
+					cfg.HideGroups = append(cfg.HideGroups, g)
+				}
 			}
 		}
 	}

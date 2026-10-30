@@ -30,11 +30,18 @@ exits on its own when it times out.
 ```
 kpmenu                pick an entry and copy its password
 kpmenu type           pick an entry and autotype username + password
+kpmenu view           browse, read, edit and add entries interactively
 kpmenu copy [entry]   copy an entry without the menu
 kpmenu refresh        rebuild the entry cache
 kpmenu unlock         unlock the agent and warm the cache
 kpmenu lock           forget the cached passphrase
 ```
+
+`kpmenu view` prompts for the passphrase up front, then lets you drill into an
+entry. Selecting any field (UserName, Password, URL, Notes, TOTP) copies it to
+the clipboard and autotypes it. The `Edit` submenu changes UserName, Password,
+URL, Notes or Title, or deletes the entry. `Add entry` creates a new one, with
+either a typed or generated password.
 
 Bind `kpmenu` and `kpmenu type` to keys in your compositor.
 
@@ -52,6 +59,7 @@ wtype           = wtype
 wl_copy         = wl-copy
 clipboard_clear = 30                        # seconds; 0 disables
 lock_timeout    = 3600                      # seconds of agent idle before lock
+hide_groups     = Recycle Bin               # comma separated, hidden from the menu
 ```
 
 The `KPMENU_CONFIG` environment variable overrides the config path.
@@ -80,8 +88,13 @@ dependencies, and (by default) binds `Mod4+grave` to open the menu and
 `Mod4+Shift+grave` to autotype. Set `keybinding = null` / `typeKeybinding = null`
 to manage bindings yourself.
 
-Full option list: `database`, `keyFile`, `package`, `pinentry`, `lockTimeout`,
-`clipboardClear`, `keybinding`, `typeKeybinding`, `extraPackages`.
+The home-manager module binds `keybinding`, `typeKeybinding` and
+`viewKeybinding` (defaults `Mod4+grave`, `Mod4+Shift+grave`,
+`Mod4+Shift+Return`). Set any to `null` to manage it yourself.
+
+Full option list: `database`, `keyFile`, `package`, `pinentry`,
+`passphrasePrompt`, `lockTimeout`, `clipboardClear`, `keybinding`,
+`typeKeybinding`, `viewKeybinding`, `extraPackages`.
 
 ## Design notes
 
@@ -90,4 +103,7 @@ Full option list: `database`, `keyFile`, `package`, `pinentry`, `lockTimeout`,
   rebuilds it when the database mtime is newer. The menu never blocks on
   decryption.
 - Group rows (trailing `/`) and `[empty]` markers from `keepassxc-cli ls -R`
-  are filtered out.
+  are filtered out, along with any group listed in `hide_groups`.
+- `keepassxc-cli` 2.7.12 exposes only the standard fields plus TOTP; custom
+  attributes are not readable, so the view menu covers Title, UserName,
+  Password, URL, Notes and TOTP.

@@ -88,6 +88,12 @@
           description = "Sway/i3 keybinding bound to autotype, or null to skip.";
         };
 
+        viewKeybinding = lib.mkOption {
+          type = lib.types.nullOr lib.types.str;
+          default = "Mod4+Shift+Return";
+          description = "Sway/i3 keybinding bound to the interactive entry browser, or null to skip.";
+        };
+
         passphrasePrompt = lib.mkOption {
           type = lib.types.enum ["wofi" "pinentry"];
           default = "wofi";
@@ -131,6 +137,10 @@
 
         (lib.mkIf (cfg.typeKeybinding != null) {
           wayland.windowManager.sway.config.keybindings.${cfg.typeKeybinding} = "exec ${cfg.package}/bin/kpmenu type";
+        })
+
+        (lib.mkIf (cfg.viewKeybinding != null) {
+          wayland.windowManager.sway.config.keybindings.${cfg.viewKeybinding} = "exec ${cfg.package}/bin/kpmenu view";
         })
       ]);
     };

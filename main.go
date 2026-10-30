@@ -14,6 +14,8 @@ func main() {
 	switch os.Args[1] {
 	case "type":
 		cmdBrowseType()
+	case "view":
+		cmdView()
 	case "refresh":
 		cmdRefresh()
 	case "unlock":
@@ -45,6 +47,7 @@ func usage() {
 usage:
   kpmenu [menu]         pick an entry and copy its password
   kpmenu type           pick an entry and autotype username/password
+  kpmenu view           browse, read, edit and add entries interactively
   kpmenu copy [entry]   copy an entry without the menu
   kpmenu refresh        rebuild the entry cache
   kpmenu unlock         unlock the agent / cache the passphrase

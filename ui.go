@@ -40,4 +40,19 @@ func wofiPassword(cfg Config, prompt string) (string, error) {
 	return strings.TrimRight(string(out), "\r\n"), nil
 }
 
+func wofiInput(cfg Config, prompt, initial string) (string, error) {
+	args := []string{"--dmenu", "--prompt", prompt}
+	cmd := exec.Command(cfg.Wofi, args...)
+	cmd.Stdin = strings.NewReader(initial)
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		if ee, ok := err.(*exec.ExitError); ok && ee.ExitCode() == 1 {
+			return "", errCancelled
+		}
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\r\n"), nil
+}
+
 var errCancelled = fmt.Errorf("cancelled")
