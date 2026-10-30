@@ -16,6 +16,7 @@ type Config struct {
 	Wtype          string
 	WlCopy         string
 	Pinentry       string
+	Prompt         string
 	CacheDir       string
 	ClipboardClear int
 	LockTimeout    int
@@ -34,6 +35,7 @@ func defaultConfig() Config {
 		Wtype:          "wtype",
 		WlCopy:         "wl-copy",
 		Pinentry:       "pinentry",
+		Prompt:         "wofi",
 		CacheDir:       cacheDir,
 		ClipboardClear: 30,
 		LockTimeout:    3600,
@@ -91,6 +93,8 @@ func loadConfig() Config {
 			cfg.WlCopy = v
 		case "pinentry":
 			cfg.Pinentry = v
+		case "passphrase_prompt":
+			cfg.Prompt = v
 		case "cache_dir":
 			cfg.CacheDir = expandHome(v)
 		case "clipboard_clear":

@@ -4,7 +4,8 @@
 
 database        = ~/keepass/passwords.kdbx
 # keyfile       = ~/keepass/key
-# pinentry      = pinentry-curses
+# passphrase_prompt = wofi        # wofi or pinentry
+# pinentry      = pinentry-gnome3
 # keepassxc_cli = keepassxc-cli
 # wofi          = wofi
 # wtype         = wtype

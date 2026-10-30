@@ -148,19 +148,37 @@ func handleConn(cfg Config, st *agentState, conn net.Conn) {
 }
 
 func promptPassphrase(cfg Config) (string, error) {
+	// wofi is tried first so the prompt matches the menu; pinentry-curses in
+	// particular needs a TTY that a compositor-spawned process does not have.
+	if cfg.Prompt == "wofi" {
+		pw, err := wofiPassword(cfg, "keepass passphrase")
+		if err == nil {
+			return pw, nil
+		}
+		if err == errCancelled {
+			return "", err
+		}
+	}
 	if _, err := exec.LookPath(cfg.Pinentry); err == nil {
 		cmd := exec.Command(cfg.Pinentry)
-		return pinentryDialog(cmd, "Passphrase for "+filepath.Base(cfg.Database))
+		pw, err := pinentryDialog(cmd, "Passphrase for "+filepath.Base(cfg.Database))
+		if err == nil {
+			return pw, nil
+		}
+		if err == errCancelled {
+			return "", err
+		}
 	}
 	if fi, _ := os.Stdin.Stat(); fi != nil && (fi.Mode()&os.ModeCharDevice) != 0 {
 		fmt.Fprint(os.Stderr, "Passphrase: ")
+		reader := bufio.NewReader(os.Stdin)
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		return strings.TrimRight(line, "\r\n"), nil
 	}
-	reader := bufio.NewReader(os.Stdin)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimRight(line, "\r\n"), nil
+	return "", fmt.Errorf("no passphrase prompt available")
 }
 
 func pinentryDialog(cmd *exec.Cmd, prompt string) (string, error) {
@@ -208,7 +226,7 @@ func pinentryDialog(cmd *exec.Cmd, prompt string) (string, error) {
 		} else if strings.HasPrefix(line, "ERR") {
 			stdin.Close()
 			cmd.Wait()
-			return "", fmt.Errorf("pinentry cancelled")
+			return "", errCancelled
 		}
 	}
 	stdin.Close()

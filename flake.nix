@@ -88,10 +88,16 @@
           description = "Sway/i3 keybinding bound to autotype, or null to skip.";
         };
 
+        passphrasePrompt = lib.mkOption {
+          type = lib.types.enum ["wofi" "pinentry"];
+          default = "wofi";
+          description = "How to prompt for the passphrase. wofi reuses the menu UI; pinentry needs a TTY or a GUI variant.";
+        };
+
         pinentry = lib.mkOption {
           type = lib.types.package;
-          default = pkgs.pinentry-curses;
-          description = "Pinentry variant used to prompt for the passphrase.";
+          default = pkgs.pinentry-gnome3;
+          description = "Pinentry variant used when passphrasePrompt is pinentry.";
         };
 
         extraPackages = lib.mkOption {
@@ -109,6 +115,7 @@
 
           xdg.configFile."kpmenu/config".text = ''
             database = ${toString cfg.database}
+            passphrase_prompt = ${cfg.passphrasePrompt}
             pinentry = ${lib.getExe cfg.pinentry}
           ''
           + lib.optionalString (cfg.keyFile != null) "keyfile = ${toString cfg.keyFile}\n"
@@ -154,12 +161,18 @@
           default = 3600;
           description = "Seconds of inactivity before the agent forgets the passphrase.";
         };
+        passphrasePrompt = lib.mkOption {
+          type = lib.types.enum ["wofi" "pinentry"];
+          default = "wofi";
+          description = "How to prompt for the passphrase.";
+        };
       };
 
       config = lib.mkIf cfg.enable {
-        environment.systemPackages = [cfg.package pkgs.keepassxc pkgs.wtype pkgs.wl-clipboard pkgs.pinentry-curses];
+        environment.systemPackages = [cfg.package pkgs.keepassxc pkgs.wtype pkgs.wl-clipboard pkgs.pinentry-gnome3];
         environment.etc."kpmenu/config".text = ''
           database = ${toString cfg.database}
+          passphrase_prompt = ${cfg.passphrasePrompt}
           lock_timeout = ${toString cfg.lockTimeout}
         '';
         environment.variables.KPMENU_CONFIG = "/etc/kpmenu/config";
