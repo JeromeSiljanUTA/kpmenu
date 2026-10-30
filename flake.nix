@@ -116,7 +116,7 @@
       config = lib.mkIf cfg.enable (lib.mkMerge [
         {
           home.packages = [cfg.package cfg.pinentry]
-            ++ (with pkgs; [keepassxc wtype wl-clipboard])
+            ++ (with pkgs; [keepassxc wtype wl-clipboard libnotify])
             ++ cfg.extraPackages;
 
           xdg.configFile."kpmenu/config".text = ''

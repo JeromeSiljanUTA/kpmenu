@@ -115,7 +115,8 @@ func runAction(cfg Config, entry string, doType bool) {
 }
 
 func notify(cfg Config, msg string) {
-	if _, err := os.Stat("/usr/bin/notify-send"); err == nil {
-		exec.Command("notify-send", "-a", "kpmenu", "kpmenu", msg).Run()
+	if _, err := exec.LookPath("notify-send"); err != nil {
+		return
 	}
+	exec.Command("notify-send", "-a", "kpmenu", "kpmenu", msg).Run()
 }
