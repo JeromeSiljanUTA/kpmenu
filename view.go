@@ -44,9 +44,12 @@ func entryMenu(cfg Config, entry, pass string) {
 			return
 		}
 
-		items := make([]string, 0, len(fields)+2)
+		items := make([]string, 0, len(fields)+3)
 		for _, f := range fields {
 			items = append(items, fieldLabel(f))
+		}
+		if !hasField(fields, "TOTP") {
+			items = append(items, "TOTP")
 		}
 		items = append(items, "Edit ▸", "Add entry")
 
@@ -66,6 +69,15 @@ func entryMenu(cfg Config, entry, pass string) {
 			useField(cfg, entry, field, pass)
 		}
 	}
+}
+
+func hasField(fields []Field, key string) bool {
+	for _, f := range fields {
+		if strings.EqualFold(f.Key, key) {
+			return true
+		}
+	}
+	return false
 }
 
 func findField(fields []Field, key string) Field {

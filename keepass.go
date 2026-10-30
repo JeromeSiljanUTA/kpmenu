@@ -89,36 +89,6 @@ type Field struct {
 	Value string
 }
 
-// showAll returns every field keepassxc-cli knows about, including custom
-// attributes. Password comes back as PROTECTED, so it is fetched separately.
-func (c Config) showAll(entry, passphrase string) ([]Field, error) {
-	args := []string{"show", "-q", "--all", "-s"}
-	if c.KeyFile != "" {
-		args = append(args, "-k", c.KeyFile)
-	}
-	args = append(args, c.Database, entry)
-	cmd := exec.Command(c.KeepassxcCli, args...)
-	cmd.Stdin = strings.NewReader(passphrase + "\n")
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("keepassxc-cli show --all: %w", err)
-	}
-	var fields []Field
-	for _, line := range strings.Split(string(out), "\n") {
-		line = strings.TrimRight(line, "\r")
-		k, v, ok := strings.Cut(line, ": ")
-		if !ok {
-			continue
-		}
-		k = strings.TrimSpace(k)
-		if strings.EqualFold(k, "uuid") || strings.EqualFold(k, "tags") {
-			continue
-		}
-		fields = append(fields, Field{Key: k, Value: v})
-	}
-	return fields, nil
-}
-
 func (c Config) generatePassword(length int) (string, error) {
 	args := []string{"generate", "-L", strconv.Itoa(length)}
 	out, err := exec.Command(c.KeepassxcCli, args...).Output()
@@ -248,12 +218,6 @@ func (c Config) dbMtime() time.Time {
 		return time.Time{}
 	}
 	return fi.ModTime()
-}
-
-func (c Config) touchCache() {
-	if fi, err := os.Stat(c.Database); err == nil {
-		_ = os.Chtimes(c.cacheFile(), fi.ModTime(), fi.ModTime())
-	}
 }
 
 func (c Config) cacheStale() bool {

@@ -63,11 +63,14 @@ func cmdCopy() {
 	runAction(cfg, entry, false)
 }
 
-// getEntries serves the cache instantly and refreshes in the background when
-// the database changed, so the menu never blocks on keepass decryption.
+// getEntries serves an unlocked agent's in-memory list instantly, or falls back
+// to the on-disk cache so the menu never blocks on keepass decryption.
 func getEntries(cfg Config) ([]string, error) {
-	entries := readCache(cfg.cacheFile())
+	if entries, ok := agentList(cfg); ok {
+		return entries, nil
+	}
 
+	entries := readCache(cfg.cacheFile())
 	if len(entries) == 0 {
 		pass, err := ensureUnlocked(cfg, true)
 		if err != nil {

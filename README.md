@@ -103,7 +103,8 @@ to manage bindings yourself.
 The home-manager module binds `keybinding` (copy), `typeKeybinding`
 (autotype) and `viewKeybinding` (interactive view). Defaults are `Mod4+grave`,
 `Mod4+Shift+grave` and `Mod4+Shift+Return`; the interactive view is the
-recommended one. Set any to `null` to skip it.
+recommended one, exposed as `Mod4+v` in the STARSCREAM config. Set any to
+`null` to skip it.
 
 Full option list: `database`, `keyFile`, `package`, `pinentry`,
 `passphrasePrompt`, `lockTimeout`, `clipboardClear`, `keybinding`,
@@ -120,8 +121,11 @@ Full option list: `database`, `keyFile`, `package`, `pinentry`,
 - kpmenu is a porcelain over `keepassxc-cli`, not a reimplementation. All
   parsing, decryption and writing is delegated to it, so no password-handling
   crypto lives in kpmenu.
-- The agent caches one decrypted entry in memory, so navigating an entry's
-  fields costs a single database decrypt instead of one per keystroke. Escape
+- The agent runs `keepassxc-cli export` once per unlock, parsing the whole
+  database into memory. Listing entries, opening an entry and reading any of
+  its fields then cost no further decrypts, so the detail screen is instant
+  even on a large vault. The cache refreshes when the file changes or an edit
+  is written. TOTP is fetched lazily because it changes over time. Escape
   moves back one menu; escape on the entry list exits.
 - `keepassxc-cli show --all` lists custom attributes, but `edit` cannot write
   them, so custom attributes are read-only in kpmenu.

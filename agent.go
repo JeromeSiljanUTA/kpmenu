@@ -9,21 +9,18 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 )
 
-type cachedEntry struct {
-	fields []Field
-	mtime  time.Time
-}
-
 type agentState struct {
 	passphrase string
 	db         string
 	lastUsed   time.Time
-	entryCache map[string]cachedEntry
+	entries    map[string][]Field
+	mtime      time.Time
 }
 
 type agentRequest struct {
@@ -53,7 +50,7 @@ func runAgent(cfg Config) error {
 	defer ln.Close()
 	os.Chmod(cfg.SocketPath, 0o600)
 
-	st := &agentState{db: cfg.Database, lastUsed: time.Now(), entryCache: map[string]cachedEntry{}}
+	st := &agentState{db: cfg.Database, lastUsed: time.Now()}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGTERM, syscall.SIGINT)
@@ -121,15 +118,16 @@ func handleConn(cfg Config, st *agentState, conn net.Conn) {
 			enc.Encode(agentResponse{Error: err.Error()})
 			return
 		}
-		if _, err := cfg.listEntries(pw); err != nil {
+		st.passphrase = pw
+		st.db = req.DB
+		st.entries = nil
+		// One export both validates the passphrase and warms the entry cache.
+		if err := st.ensureExport(cfg); err != nil {
+			st.passphrase = ""
 			enc.Encode(agentResponse{Error: "unlock failed: " + err.Error()})
 			return
 		}
-		st.passphrase = pw
-		st.db = req.DB
-		if req.Refresh {
-			refreshCache(cfg, pw)
-		}
+		writeCache(cfg.cacheFile(), sortedPaths(st.entries, cfg))
 		enc.Encode(agentResponse{OK: true})
 	case "pass":
 		if st.passphrase == "" {
@@ -145,47 +143,79 @@ func handleConn(cfg Config, st *agentState, conn net.Conn) {
 			enc.Encode(agentResponse{Error: "locked"})
 			return
 		}
-		if err := refreshCache(cfg, st.passphrase); err != nil {
+		st.entries = nil
+		if err := st.ensureExport(cfg); err != nil {
 			enc.Encode(agentResponse{Error: err.Error()})
 			return
 		}
-		st.entryCache = map[string]cachedEntry{}
+		writeCache(cfg.cacheFile(), sortedPaths(st.entries, cfg))
 		enc.Encode(agentResponse{OK: true})
 	case "entry":
 		if st.passphrase == "" {
 			enc.Encode(agentResponse{Error: "locked"})
 			return
 		}
-		fields, err := st.cachedFields(cfg, req.Entry)
-		if err != nil {
+		if err := st.ensureExport(cfg); err != nil {
 			enc.Encode(agentResponse{Error: err.Error()})
 			return
 		}
+		fields, ok := st.entries[req.Entry]
+		if !ok {
+			enc.Encode(agentResponse{Error: "entry not found: " + req.Entry})
+			return
+		}
 		enc.Encode(agentResponse{OK: true, Fields: fields})
+	case "list":
+		if st.passphrase == "" {
+			enc.Encode(agentResponse{Error: "locked"})
+			return
+		}
+		if err := st.ensureExport(cfg); err != nil {
+			enc.Encode(agentResponse{Error: err.Error()})
+			return
+		}
+		paths := make([]string, 0, len(st.entries))
+		for p := range st.entries {
+			if !cfg.hiddenEntry(p) {
+				paths = append(paths, p)
+			}
+		}
+		sort.Strings(paths)
+		enc.Encode(agentResponse{OK: true, Value: strings.Join(paths, "\n")})
 	case "invalidate":
-		delete(st.entryCache, req.Entry)
+		st.entries = nil
 		enc.Encode(agentResponse{OK: true})
 	default:
 		enc.Encode(agentResponse{Error: "unknown op"})
 	}
 }
 
-// cachedFields decrypts the database at most once per entry and keeps the
-// result in memory; every later field read is served from here.
-func (st *agentState) cachedFields(cfg Config, entry string) ([]Field, error) {
+// ensureExport decrypts the whole database once and caches every entry, so
+// opening an entry never invokes keepassxc-cli again. The cache refreshes when
+// the database file changes.
+func sortedPaths(entries map[string][]Field, cfg Config) []string {
+	paths := make([]string, 0, len(entries))
+	for p := range entries {
+		if !cfg.hiddenEntry(p) {
+			paths = append(paths, p)
+		}
+	}
+	sort.Strings(paths)
+	return paths
+}
+
+func (st *agentState) ensureExport(cfg Config) error {
 	mtime := cfg.dbMtime()
-	if c, ok := st.entryCache[entry]; ok && c.mtime.Equal(mtime) {
-		return c.fields, nil
+	if st.entries != nil && st.mtime.Equal(mtime) {
+		return nil
 	}
-	fields, err := cfg.showAll(entry, st.passphrase)
+	entries, err := cfg.exportAll(st.passphrase)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if totp, err := cfg.totp(entry, st.passphrase); err == nil && totp != "" {
-		fields = append(fields, Field{Key: "TOTP", Value: totp})
-	}
-	st.entryCache[entry] = cachedEntry{fields: fields, mtime: mtime}
-	return fields, nil
+	st.entries = entries
+	st.mtime = mtime
+	return nil
 }
 
 func promptPassphrase(cfg Config) (string, error) {

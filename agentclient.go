@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -56,6 +57,25 @@ func agentCall(cfg Config, req agentRequest) (agentResponse, error) {
 		return agentResponse{}, err
 	}
 	return resp, nil
+}
+
+// agentList returns the entry paths from the agent's decrypted export, falling
+// back to the on-disk cache when the agent is not running.
+func agentList(cfg Config) ([]string, bool) {
+	if !agentAlive(cfg) {
+		return nil, false
+	}
+	resp, err := agentCall(cfg, agentRequest{Op: "list"})
+	if err != nil || !resp.OK {
+		return nil, false
+	}
+	var out []string
+	for _, l := range strings.Split(resp.Value, "\n") {
+		if l != "" {
+			out = append(out, l)
+		}
+	}
+	return out, true
 }
 
 // agentFields asks the agent for a decrypted entry, decrypting only on a miss.
