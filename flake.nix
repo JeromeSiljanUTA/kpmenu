@@ -76,24 +76,6 @@
           description = "Seconds before the copied password is cleared from the clipboard.";
         };
 
-        keybinding = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = "Mod4+grave";
-          description = "Sway/i3 keybinding bound to kpmenu, or null to skip.";
-        };
-
-        typeKeybinding = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = "Mod4+Shift+grave";
-          description = "Sway/i3 keybinding bound to autotype, or null to skip.";
-        };
-
-        viewKeybinding = lib.mkOption {
-          type = lib.types.nullOr lib.types.str;
-          default = "Mod4+Shift+Return";
-          description = "Sway/i3 keybinding bound to the interactive entry browser, or null to skip.";
-        };
-
         passphrasePrompt = lib.mkOption {
           type = lib.types.enum ["wofi" "pinentry"];
           default = "wofi";
@@ -113,36 +95,22 @@
         };
       };
 
-      config = lib.mkIf cfg.enable (lib.mkMerge [
-        {
-          home.packages = [cfg.package cfg.pinentry]
-            ++ (with pkgs; [keepassxc wtype wl-clipboard libnotify])
-            ++ cfg.extraPackages;
+      config = lib.mkIf cfg.enable {
+        home.packages = [cfg.package cfg.pinentry]
+          ++ (with pkgs; [keepassxc wtype wl-clipboard libnotify])
+          ++ cfg.extraPackages;
 
-          xdg.configFile."kpmenu/config".text = ''
-            database = ${toString cfg.database}
-            passphrase_prompt = ${cfg.passphrasePrompt}
-            pinentry = ${lib.getExe cfg.pinentry}
-          ''
-          + lib.optionalString (cfg.keyFile != null) "keyfile = ${toString cfg.keyFile}\n"
-          + ''
-            lock_timeout = ${toString cfg.lockTimeout}
-            clipboard_clear = ${toString cfg.clipboardClear}
-          '';
-        }
-
-        (lib.mkIf (cfg.keybinding != null) {
-          wayland.windowManager.sway.config.keybindings.${cfg.keybinding} = "exec ${cfg.package}/bin/kpmenu";
-        })
-
-        (lib.mkIf (cfg.typeKeybinding != null) {
-          wayland.windowManager.sway.config.keybindings.${cfg.typeKeybinding} = "exec ${cfg.package}/bin/kpmenu type";
-        })
-
-        (lib.mkIf (cfg.viewKeybinding != null) {
-          wayland.windowManager.sway.config.keybindings.${cfg.viewKeybinding} = "exec ${cfg.package}/bin/kpmenu view";
-        })
-      ]);
+        xdg.configFile."kpmenu/config".text = ''
+          database = ${toString cfg.database}
+          passphrase_prompt = ${cfg.passphrasePrompt}
+          pinentry = ${lib.getExe cfg.pinentry}
+        ''
+        + lib.optionalString (cfg.keyFile != null) "keyfile = ${toString cfg.keyFile}\n"
+        + ''
+          lock_timeout = ${toString cfg.lockTimeout}
+          clipboard_clear = ${toString cfg.clipboardClear}
+        '';
+      };
     };
 
     # Plain NixOS module (no home-manager) for completeness.

@@ -52,3 +52,16 @@ hide_groups       = Recycle Bin                # comma separated
 `keepassxc_cli`, `wofi`, `wtype`, `wl_copy`, `pinentry` and `cache_dir` can also
 be set. The flake's home-manager module writes this file; the database path is a
 `programs.kpmenu.database` option.
+
+## Keybindings
+
+The module only installs the package and writes the config above. Bind the
+commands in your window manager, for example in Sway:
+
+```nix
+wayland.windowManager.sway.config.keybindings = {
+  "Mod4+grave" = "exec ${pkgs.kpmenu}/bin/kpmenu";
+  "Mod4+Shift+grave" = "exec ${pkgs.kpmenu}/bin/kpmenu type";
+  "Mod4+Shift+Return" = "exec ${pkgs.kpmenu}/bin/kpmenu view";
+};
+```
